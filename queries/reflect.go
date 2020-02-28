@@ -46,7 +46,9 @@ func (q *Query) BindP(obj interface{}) {
 }
 
 // Bind executes the query and inserts the
-// result into the passed in object pointer
+// result into the passed in object pointer.
+//
+// The caller is responsible for closing the rows.
 //
 // Bind rules:
 //   - Struct tags control bind, in the form of: `boil:"name,bind"`
@@ -92,7 +94,7 @@ func Bind(rows *sql.Rows, obj interface{}) error {
 }
 
 // Bind executes the query and inserts the
-// result into the passed in object pointer
+// result into the passed in object pointer.
 //
 // See documentation for boil.Bind()
 func (q *Query) Bind(obj interface{}) error {
@@ -105,9 +107,18 @@ func (q *Query) Bind(obj interface{}) error {
 	if err != nil {
 		return errors.Wrap(err, "bind failed to execute query")
 	}
-	defer rows.Close()
-	if res := bind(rows, obj, structType, sliceType, bkind); res != nil {
-		return res
+	if err = bind(rows, obj, structType, sliceType, bkind); err != nil {
+		if innerErr := rows.Close(); innerErr != nil {
+			return errors.Wrapf(err, "error on rows.Close after bind error: %+v", innerErr)
+		}
+
+		return err
+	}
+	if err = rows.Close(); err != nil {
+		return errors.Wrap(err, "failed to clean up rows in bind")
+	}
+	if err = rows.Err(); err != nil {
+		return errors.Wrap(err, "error from rows in bind")
 	}
 
 	if len(q.load) != 0 {
@@ -221,6 +232,7 @@ func bind(rows *sql.Rows, obj interface{}, structType, sliceType reflect.Type, b
 	}
 
 	foundOne := false
+Rows:
 	for rows.Next() {
 		foundOne = true
 		var newStruct reflect.Value
@@ -244,6 +256,8 @@ func bind(rows *sql.Rows, obj interface{}, structType, sliceType reflect.Type, b
 		}
 
 		switch bkind {
+		case kindStruct:
+			break Rows
 		case kindSliceStruct:
 			ptrSlice.Set(reflect.Append(ptrSlice, oneStruct))
 		case kindPtrSliceStruct:
@@ -279,8 +293,8 @@ ColLoop:
 				continue ColLoop
 			}
 		}
-
-		return nil, errors.Errorf("could not find struct field name in mapping: %s", name)
+		// if c doesn't exist in the model, the pointer will be the zero value in the ptrs array and it's value will be thrown away
+		continue
 	}
 
 	return ptrs, nil
@@ -309,6 +323,10 @@ func ValuesFromMapping(val reflect.Value, mapping []uint64) []interface{} {
 // ptrFromMapping expects to be passed an addressable struct that it's looking
 // for things on.
 func ptrFromMapping(val reflect.Value, mapping uint64, addressOf bool) reflect.Value {
+	if mapping == 0 {
+		var ignored interface{}
+		return reflect.ValueOf(&ignored)
+	}
 	for i := 0; i < 8; i++ {
 		v := (mapping >> uint(i*8)) & sentinel
 

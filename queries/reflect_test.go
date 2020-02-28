@@ -53,6 +53,7 @@ func TestBindStruct(t *testing.T) {
 
 	ret := sqlmock.NewRows([]string{"id", "test"})
 	ret.AddRow(driver.Value(int64(35)), driver.Value("pat"))
+	ret.AddRow(driver.Value(int64(65)), driver.Value("hat"))
 	mock.ExpectQuery(`SELECT \* FROM "fun";`).WillReturnRows(ret)
 
 	SetExecutor(query, db)
@@ -283,8 +284,7 @@ func TestValuesFromMapping(t *testing.T) {
 			IntP: new(int),
 		},
 	}
-
-	mapping := []uint64{testMakeMapping(0), testMakeMapping(1), testMakeMapping(2, 0), testMakeMapping(2, 1)}
+	mapping := []uint64{testMakeMapping(0), testMakeMapping(1), testMakeMapping(2, 0), testMakeMapping(2, 1), 0}
 	v := ValuesFromMapping(reflect.Indirect(reflect.ValueOf(val)), mapping)
 
 	if got := v[0].(int); got != 5 {
@@ -298,6 +298,9 @@ func TestValuesFromMapping(t *testing.T) {
 	}
 	if got := v[3].(int); got != 0 {
 		t.Error("nested pointer was wrong:", got)
+	}
+	if got := *v[4].(*interface{}); got != nil {
+		t.Error("nil pointer was not be ignored:", got)
 	}
 }
 

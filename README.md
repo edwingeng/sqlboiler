@@ -643,7 +643,7 @@ And("age=?", 24)
 Or("height=?", 183)
 
 // WHERE IN clause building
-WhereIn("name, age in ?", "John" 24, "Tim", 33) // Generates: WHERE ("name","age") IN (($1,$2),($3,$4))
+WhereIn("name, age in ?", "John", 24, "Tim", 33) // Generates: WHERE ("name","age") IN (($1,$2),($3,$4))
 AndIn("weight in ?", 84)
 OrIn("height in ?", 183, 177, 204)
 
@@ -756,7 +756,7 @@ type PilotAndJet struct {
 
 var paj PilotAndJet
 // Use a raw query
-err := queries.Raw(`
+err := queries.Raw(db, `
   select pilots.id as "pilots.id", pilots.name as "pilots.name",
   jets.id as "jets.id", jets.pilot_id as "jets.pilot_id",
   jets.age as "jets.age", jets.name as "jets.name", jets.color as "jets.color"
@@ -784,7 +784,7 @@ var info JetInfo
 err := models.NewQuery(db, Select("sum(age) as age_sum", "count(*) as juicy_count", From("jets"))).Bind(&info)
 
 // Use a raw query
-err := queries.Raw(`select sum(age) as "age_sum", count(*) as "juicy_count" from jets`).Bind(&info)
+err := queries.Raw(db, `select sum(age) as "age_sum", count(*) as "juicy_count" from jets`).Bind(&info)
 ```
 
 We support the following struct tag modes for `Bind()` control:
@@ -1095,7 +1095,7 @@ pilots, _ := models.Pilots(db).All()
 err := pilots.UpdateAll(db, models.M{"name": "Smith"})
 
 // Update all pilots in the database to to have the name "Smith"
-err := models.Pilots(db).UpdateAll(models.M{"name", "Smith"})
+err := models.Pilots(db).UpdateAll(models.M{"name": "Smith"})
 ```
 
 ### Delete
